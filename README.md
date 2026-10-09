@@ -1,199 +1,100 @@
 # Deep Network Design Simulator
 
-This application is a simulator built to **understand the inner mechanics of deep‑learning neural networks**, design various network architectures, train them, and visualise their results.  
-All mathematical operations are implemented **manually in Python**, helping users learn by doing.  
-You can run the project either via **`main.py`** or through the provided **`.exe`** file.
+A desktop educational simulator for designing small dense neural networks and inspecting their calculations. Forward propagation, backpropagation, and optimizer updates use Python lists and manual mathematical operations. Matplotlib plots the training history, and Tkinter provides the interface. The application labels and logs are primarily Turkish.
 
----
+## Setup and launch
 
-## Features
+Use Python 3.10 or newer with Tkinter and a graphical desktop. Python 3.13 with Tcl/Tk 8.6 was used for local validation. On Windows, select Tcl/Tk support when installing Python. On Linux, install your distribution's Tkinter package if `python -m tkinter` is unavailable. A headless terminal alone cannot display the application.
 
-- **Dynamic Network Configuration**  
-  Define the number of neurons in the **input**, **hidden**, and **output** layers, as well as the number of hidden layers.
-- **Activation Function Selection**  
-  Choose a different activation function (Sigmoid, ReLU, Tanh, Linear, Softmax) for every layer except the input.
-- **Loss Function Selection**  
-  Switch between **Mean Squared Error (MSE)** and **Cross‑Entropy** loss.
-- **Optimisation Algorithms**  
-  Select among **SGD**, **Momentum**, and **Adam** optimisers.
-- **Manual & Automatic Training**  
-  Train the network **step‑by‑step** or **fully automatically**.
-- **Step‑by‑Step Monitoring**  
-  - Observe each forward/backward step in detail (weight products, bias additions, activations, deltas, gradients, weight updates).  
-  - Toggle visualisation of these steps during automatic training.
-- **Visualisation**  
-  - Live view of the neural‑network graph.  
-  - Show/hide neuron values: activation (a), weighted sum (z), bias (b).  
-  - Show/hide connection weights (w).  
-  - Connection thickness & colour adapt dynamically to weight magnitude.
-- **Graphs**  
-  - **Loss per epoch**.  
-  - **Accuracy per epoch** (when using Cross‑Entropy + Softmax).  
-  - **Text‑based Confusion Matrix** (when using Cross‑Entropy + Softmax).
-- **Data Handling**  
-  - Enter data manually.  
-  - Load data from CSV.
-- **Save / Load Network & Training State**  
-  - Save the designed network (structure, weights, biases, optimizer state, training history) as **`.json`** and reload later.  
-  - Save the network graph as **`.eps`**.
-- **User Interface**  
-  - Modern UI (Sun‑Valley theme support).  
-  - Switch between **light** and **dark** mode.  
-  - Scrollable control panel.  
-  - Click on neurons to get detailed info.
+From the repository root, create an isolated environment and install the runtime dependency:
 
----
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe source_code/main.py
+```
 
-## Installation & Running
+On macOS or Linux, use the environment's `bin/python`:
 
-1. **Requirements**
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python source_code/main.py
+```
 
-   - Python 3.x  
-   - Tkinter *(bundled with Python)*  
-   - Matplotlib → `pip install matplotlib`  
-   - *(Optional but recommended)* Sun‑Valley TTK theme → `pip install sv_ttk`
+The equivalent module launch from the repository root is `python -m source_code.main`, using the Python interpreter from your environment. Keep the source files together in `source_code`; there is no `main.py` at the repository root.
 
-2. **Files**
+The optional Sun Valley theme enables light/dark switching:
 
-   Place the following files in the **same directory**:
+```sh
+python -m pip install sv_ttk
+```
 
-   - `main.py` – entry point  
-   - `gui.py` – main GUI class  
-   - `neural_network.py` – `NeuralNetwork` class  
-   - `utils.py` – mathematical helpers  
-   - `gui_components.py` – GUI widgets (e.g. ToolTip)
+Run that command with your environment's interpreter. Without `sv_ttk`, the simulator uses the default Tk theme.
 
-3. **Run**
+`Simulator.exe` is an existing Windows binary committed to this repository. It is not rebuilt by these setup commands and does not incorporate subsequent source changes. The source application is the maintained and tested launch path; the binary has not been validated against it.
 
-   Open a terminal/cmd, navigate to the project folder and execute:
+## Design and inspect a network
 
-   ```bash
-   python main.py
-   ```
+The left panel contains architecture, data, and training controls. The right panel contains visualization, logs, editable weights and biases, and results.
 
----
+1. Set the input feature count, number of hidden layers, neuron counts, and output count.
+2. Choose each layer's activation: sigmoid, ReLU, tanh, linear, or softmax.
+3. Select **Ağı Kur ve Çiz** (Build and Draw Network). A network can have zero hidden layers. All input and layer sizes must be positive integers.
+4. Supply input samples and targets. Use the forward controls to inspect one sample, then the backward or training controls to update weights.
 
-## User Guide
+The network graph can show activations, weighted sums, biases, and connection weights. Clicking a neuron shows its details. The weight/bias editor applies manual values and resets optimizer state.
 
-The UI has two major areas: the **Control Panel** (left) and the **Visualisation & Results Panel** (right).
+Training supports SGD, momentum, and Adam. Step-by-step controls show individual forward and backward calculations. Automatic training iterates the dataset for the selected epochs; showing individual steps and adding a delay makes it slower. Start with a small network and a small epoch count because training runs on the GUI thread.
 
-### 1. Network Configuration (Left Panel – Top)
+## Data format
 
-Define your network architecture here.
+For manual data, separate features with commas. Separate samples with newlines, semicolons, or both. For example, two samples with two features:
 
-| Control | Description |
-|---------|-------------|
-| **Switch Theme** | Toggle between light & dark mode (works if `sv_ttk` is installed). |
-| **Load Network** | Load a previously saved network & training state (`.json`). |
-| **Save Network** | Save the current network & training state (`.json`) *enabled after building the net*. |
-| **# Hidden Layers** | Select the number of hidden layers (0‑100). Updates the *Hidden K.X Neurons/Actv.* fields below. |
-| **# Input Neurons** | Number of input features. |
-| **# Output Neurons** | Number of outputs (usually = number of classes in classification). |
-| **Output Actv. Func.** | Activation function for the output layer (`sigmoid`, `softmax`, `linear`). |
-| **Hidden K.X Neurons / Actv.** | Enter neuron count & activation for each hidden layer. |
-| **Build & Draw Network** | Creates the neural net with the above settings and draws it on the right. Enables the training controls. |
+```text
+0.1,0.5
+0.8,0.2
+```
 
-### 2. Data & Training Parameters (Left Panel – Middle)
+The equivalent single-line input is `0.1,0.5;0.8,0.2`. Provide one matching target sample for each input sample. The individual forward/backward controls use the first sample.
 
-Set the data and training hyper‑parameters.
+CSV input can have a text header or no header. Each numeric row contains the input features first, followed by target values. For two input features and one output:
 
-- **Load Data (CSV)**  
-  Load training & target data from a CSV file.  
-  - The first row may be a header (optional).  
-  - Data must be numeric.  
-  - First **N** columns → input **X**, next **M** columns → target **Y** (`N` = # Input Neurons, `M` = # Output Neurons).
+```csv
+feature1,feature2,target
+0.1,0.5,0
+0.8,0.2,1
+```
 
-- **Input Data (X)**  
-  Enter input samples manually.  
-  - **Format:** Each row = one sample. If you wish, separate multiple samples on one line with semicolon (`;`). Inside a sample, separate features by comma (`,`).  
-  - **Example (2 samples, 2 features):**  
-    ```
-    0.1,0.5
-    0.8,0.2
-    ```  
-    or  
-    ```
-    0.1,0.5;0.8,0.2
-    ```
+The first numeric row is preserved when there is no header. Invalid rows are skipped with a log message. The text boxes display up to five imported samples; automatic training uses all successfully imported samples, while the individual step controls use the first displayed sample. Automatic training continues to use the imported dataset until the simulation is reset or another CSV is loaded, even if the preview text is edited.
 
-- **Target Outputs (Y)**  
-  Enter target values manually. Same format as **X**.  
-  - **Important (Classification):** If you choose `cross_entropy` loss with multiple classes (# Output > 1 & Output Actv. = `softmax`), **Y must be one‑hot**. E.g. for 3 classes and true class = 2nd: `0,1,0`. If a single label is provided, the program will try to convert it to one‑hot.
+Use `mean_squared_error` for regression. It reports one half of the mean squared error across output neurons. For classification, use `cross_entropy` with a **softmax output layer**. Other output activations are rejected during cross-entropy backpropagation. Set the output count to the number of classes and supply one-hot targets such as `0,1,0`, or a zero-based class index such as `1`. The simulator converts class indices to one-hot vectors.
 
-- **Loss Function** – `mean_squared_error` or `cross_entropy`  
-- **Optimizer** – `sgd`, `momentum`, or `adam`  
-- **# Epochs** – How many times the full dataset is fed through the net.  
-- **Learning Rate** – Step size for weight updates.
+Accuracy, precision, recall, F1, and the text confusion matrix are available for cross-entropy with softmax. These are results from the provided samples, not independently validated model benchmarks.
 
-### 3. Execution & Monitoring (Left Panel – Bottom)
+## Save and load
 
-Controls for running and observing the network.
+Save/load controls use JSON containing the architecture, weights, biases, loss choice, optimizer state, and training history. Training data and the full set of training settings are not stored in that file. Supplied weight matrices and bias vectors must include every layer, match its dimensions, and contain finite numeric values. Invalid model construction leaves the previous network intact.
 
-| Button / Option | What it does |
-|-----------------|--------------|
-| **Detailed Fwd Step (?)** | If checked, *Forward Step* shows each weight·input + bias separately; otherwise a whole layer at once. |
-| **Forward Step (1 sample)** | Runs a single forward‑prop step with the first X sample, advancing one calculation per click. |
-| **Full Forward (1 sample)** | Runs complete forward‑prop once and shows the result. |
-| **Backward Step (1 sample)** | Performs backward‑prop step‑by‑step using the first Y sample, after a full forward pass. |
-| **Train Step‑by‑Step (start 1 sample)** | Runs one training step (forward + backward) on the first sample. Continue with **Next Step in Training →**. |
-| **Current Phase** | Shows the current phase during step‑by‑step training (e.g. Forward, Backward). |
-| **Next Step in Training →** | Moves to the next calculation step after *Train Step‑by‑Step* is started. |
-| **Show Steps in Auto‑Train / Delay(s)** | If checked, auto‑training visualises each (sub‑)step. Set delay between steps (e.g. 0.05 s). |
-| **Start Training (Auto)** | Trains automatically for the specified epochs. |
-| **Progress Bar** | Shows epoch progress during auto‑training. |
-| **Reset Simulation** | Resets everything (network, data, graphs, settings).
+Save the graph as Encapsulated PostScript (`.eps`) using the image save control. Converting it to another format requires a separate EPS-capable tool.
 
-### 4. Visualisation & Results Panel (Right Side)
+## Development checks
 
-Organised in tabs.
+Install the development requirements using your environment's interpreter:
 
-- **Network Visualisation**  
-  - Displays the built network graphically.  
-  - Save image as **`.eps`** (convert later to PNG via e.g. Ghostscript).  
-  - Toggle check‑boxes to show/hide weights, biases, neuron values.  
-  - **Click a neuron** to open a detail window with its values.
+```sh
+python -m pip install -r requirements-dev.txt
+python -m unittest discover -s tests -v
+python -m bandit -r source_code
+python -m pip_audit
+```
 
-- **Logs & Output**  
-  - Shows operations, error messages, training progress, and key results.
+Tests exercise network construction, state reset, deterministic forward calculations, numerical gradient comparisons, multiline/CSV parsing, GUI construction, and tooltip behavior. GUI tests need a display and skip when Tk cannot create a window; check the reported skip count before treating a headless run as GUI evidence. Tests use tiny in-memory networks and temporary CSV fixtures without external models, datasets, or expensive training.
 
-- **Weights & Biases (Edit)**  
-  - After building the net, edit weight matrices or bias vectors manually.  
-  - Select the matrix/vector, change values, then click **Apply Changes** (optimizer state resets).
+The repository currently has no GitHub Actions workflow. Local checks do not validate the prebuilt executable, every interactive control, long training runs, or cross-platform desktop behavior.
 
-- **Loss Graph**  
-  - Mean loss per epoch during auto‑training (Matplotlib toolbar enabled).
+## License
 
-- **Accuracy Graph**  
-  - For classification (Cross‑Entropy + Softmax), accuracy per epoch.
-
-- **Confusion Matrix**  
-  - For classification, a text‑based confusion matrix after training.  
-  - Format `Real\Pred | C0 | C1 | ...`.
-
-- **Metrics**  
-  - Shows metrics during/after training.  
-  - *Regression:* Mean Loss.  
-  - *Classification:* Mean Loss, Accuracy, Precision (macro & per‑class), Recall, F1 (macro & per‑class).  
-  - After *Full Forward*, shows predicted vs. real values for the last sample.
-
----
-
-## Tips & Troubleshooting
-
-- **# Hidden Layers**  
-  With many layers (>10) or many neurons per layer (>50), config fields become scrollable.
-
-- **Performance**  
-  Training large nets or many epochs can be slow if *Show Steps in Auto‑Train* and especially *Detailed Fwd Step* are enabled. Disable them for faster runs.
-
-- **Data Format**  
-  Ensure numeric values and correct separators (`,` for features, `;` for samples).
-
-- **Classification Metrics**  
-  To view Accuracy, Precision, Recall, F1 and Confusion Matrix:  
-  - Output neurons = number of classes  
-  - Output activation = `softmax`  
-  - Loss = `cross_entropy`  
-  - Y targets must be **one‑hot** encoded.
-
-Enjoy designing and exploring your own neural networks! 🚀
+[MIT](LICENSE), copyright 2025 Tuğcan Topaloğlu.

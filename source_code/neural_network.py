@@ -4,13 +4,22 @@
 
 import math
 import random
-from utils import (
-    ACTIVATION_FUNCTIONS, LOSS_FUNCTIONS,
-    multiply_row_vector_matrix, add_vectors, subtract_vectors,
-    elementwise_multiply_vectors, transpose_matrix,
-    multiply_scalar_vector, multiply_scalar_matrix,
-    add_matrices, subtract_matrices
-)
+if __package__:
+    from .utils import (
+        ACTIVATION_FUNCTIONS, LOSS_FUNCTIONS,
+        multiply_row_vector_matrix, add_vectors, subtract_vectors,
+        elementwise_multiply_vectors, transpose_matrix,
+        multiply_scalar_vector, multiply_scalar_matrix,
+        add_matrices, subtract_matrices
+    )
+else:
+    from utils import (
+        ACTIVATION_FUNCTIONS, LOSS_FUNCTIONS,
+        multiply_row_vector_matrix, add_vectors, subtract_vectors,
+        elementwise_multiply_vectors, transpose_matrix,
+        multiply_scalar_vector, multiply_scalar_matrix,
+        add_matrices, subtract_matrices
+    )
 
 class NeuralNetwork:
     def __init__(self, loss_function_name="mean_squared_error"):
@@ -41,27 +50,50 @@ class NeuralNetwork:
         self.v_b.append([0.0 for _ in range(num_neurons)])
 
     def configure_network(self, input_size, layer_configs_from_gui, custom_weights=None, custom_biases=None):
-        self.layer_configs = layer_configs_from_gui
-        self.weights, self.biases = [], []
+        if isinstance(input_size, bool) or not isinstance(input_size, int) or input_size <= 0:
+            raise ValueError("Input size must be a positive integer.")
+        layer_configs = list(layer_configs_from_gui)
+        if not layer_configs:
+            raise ValueError("The network must have an output layer.")
+        for num_neurons, activation in layer_configs:
+            if isinstance(num_neurons, bool) or not isinstance(num_neurons, int) or num_neurons <= 0:
+                raise ValueError("Each layer size must be a positive integer.")
+            if activation not in ACTIVATION_FUNCTIONS:
+                raise ValueError(f"Unknown activation function: {activation}")
+        for values, name in ((custom_weights, "weights"), (custom_biases, "biases")):
+            if values is not None and len(values) != len(layer_configs):
+                raise ValueError(f"Custom {name} must include every layer.")
+        weights, biases = [], []
+        prev_layer_neuron_count = input_size
+        for i, (num_neurons, _) in enumerate(layer_configs):
+            if custom_weights is not None:
+                layer_weights = [[float(w_val) for w_val in w_row] for w_row in custom_weights[i]] 
+                if len(layer_weights) != prev_layer_neuron_count or any(len(row) != num_neurons for row in layer_weights):
+                    raise ValueError(f"Layer {i+1} weights must have shape {prev_layer_neuron_count}x{num_neurons}.")
+                if any(not math.isfinite(value) for row in layer_weights for value in row):
+                    raise ValueError("Weights must contain finite numbers.")
+            else:
+                limit = math.sqrt(6 / (prev_layer_neuron_count + num_neurons)) if (prev_layer_neuron_count + num_neurons > 0) else 0.5
+                layer_weights = [[random.uniform(-limit, limit) for _ in range(num_neurons)] for _ in range(prev_layer_neuron_count)]
+            if custom_biases is not None:
+                layer_biases = [float(b_val) for b_val in custom_biases[i]] 
+                if len(layer_biases) != num_neurons:
+                    raise ValueError(f"Layer {i+1} biases must contain {num_neurons} values.")
+                if any(not math.isfinite(value) for value in layer_biases):
+                    raise ValueError("Biases must contain finite numbers.")
+            else: layer_biases = [random.uniform(-0.1, 0.1) for _ in range(num_neurons)]
+            weights.append(layer_weights)
+            biases.append(layer_biases)
+            prev_layer_neuron_count = num_neurons
+        self.layer_configs = [tuple(config) for config in layer_configs]
+        self.weights, self.biases = weights, biases
+        self.neuron_outputs_z, self.neuron_outputs_a = [], []
+        self.current_input_for_forward = []
         self.velocity_W, self.velocity_b = [], []
         self.m_W, self.v_W, self.m_b, self.v_b = [], [], [], []
         self.adam_t = 0
         prev_layer_neuron_count = input_size
-        for i, (num_neurons, _) in enumerate(self.layer_configs):
-            if custom_weights and i < len(custom_weights):
-                layer_weights = [[float(w_val) for w_val in w_row] for w_row in custom_weights[i]] 
-                if len(layer_weights) != prev_layer_neuron_count or (layer_weights and len(layer_weights[0]) != num_neurons):
-                    raise ValueError(f"Katman {i+1} özel W boyutları ({len(layer_weights)}x{len(layer_weights[0]) if layer_weights else 0}) != beklenen ({prev_layer_neuron_count}x{num_neurons}).")
-            else:
-                limit = math.sqrt(6 / (prev_layer_neuron_count + num_neurons)) if (prev_layer_neuron_count + num_neurons > 0) else 0.5
-                layer_weights = [[random.uniform(-limit, limit) for _ in range(num_neurons)] for _ in range(prev_layer_neuron_count)]
-            if custom_biases and i < len(custom_biases):
-                layer_biases = [float(b_val) for b_val in custom_biases[i]] 
-                if len(layer_biases) != num_neurons:
-                     raise ValueError(f"Katman {i+1} özel B boyutu ({len(layer_biases)}) != beklenen ({num_neurons}).")
-            else: layer_biases = [random.uniform(-0.1, 0.1) for _ in range(num_neurons)]
-            self.weights.append(layer_weights)
-            self.biases.append(layer_biases)
+        for num_neurons, _ in self.layer_configs:
             self._initialize_optimizer_params(prev_layer_neuron_count, num_neurons)
             prev_layer_neuron_count = num_neurons
 
@@ -76,6 +108,8 @@ class NeuralNetwork:
         return ACTIVATION_FUNCTIONS[activation_str][1]
 
     def forward_pass_generator(self, inputs, detailed_steps=False):
+        if not self.weights or len(inputs) != len(self.weights[0]):
+            raise ValueError("Input dimensions must match a configured network.")
         self.current_input_for_forward = list(inputs)
         self.neuron_outputs_z, self.neuron_outputs_a = [], [list(inputs)] 
         current_activations = list(inputs)
@@ -103,7 +137,13 @@ class NeuralNetwork:
         yield {"type": "forward_pass_complete", "final_output": list(current_activations)}
 
     def backward_pass_generator(self, targets, learning_rate, optimizer_params=None):
-        if not self.neuron_outputs_a or len(self.neuron_outputs_a) <= 1: yield {"type": "error", "message": "İleri yayılım çalıştırılmadı."}; return
+        if not self.weights or len(self.neuron_outputs_a) != len(self.weights) + 1:
+            yield {"type": "error", "message": "Complete a forward pass before backpropagation."}
+            return
+        if len(targets) != len(self.biases[-1]):
+            raise ValueError("Target dimensions must match the output layer.")
+        if self.loss_function_name == "cross_entropy" and self.layer_configs[-1][1] != "softmax":
+            raise ValueError("Cross-entropy training requires a softmax output layer.")
         optimizer_params = optimizer_params or {}; optimizer_type = optimizer_params.get("type", "sgd")
         beta_momentum, beta1_adam, beta2_adam, epsilon_adam = optimizer_params.get("beta", 0.9), optimizer_params.get("beta1", 0.9), optimizer_params.get("beta2", 0.999), optimizer_params.get("epsilon", 1e-8)
         if optimizer_type == "adam": self.adam_t += 1
@@ -112,20 +152,29 @@ class NeuralNetwork:
             delta_L = self.loss_derivative_func(targets, a_L) 
             yield {"type": "output_delta_calculation", "layer_index": output_layer_idx, "method": "cross_entropy_with_softmax (dL/dz_L)", "a_L": list(a_L), "targets": list(targets), "delta_L": list(delta_L), "num_neurons": len(delta_L)}
         else: 
-            dL_daL = subtract_vectors(a_L, targets) if self.loss_function_name == "mean_squared_error" else self.loss_derivative_func(targets, a_L)
+            dL_daL = self.loss_derivative_func(targets, a_L)
             activation_derivative_func_obj = self.get_activation_derivative_func_obj(output_layer_idx)
             f_prime_z_L = [activation_derivative_func_obj(z) for z in z_L]
-            delta_L = elementwise_multiply_vectors(dL_daL, f_prime_z_L) 
-            yield {"type": "output_delta_calculation", "layer_index": output_layer_idx, "method": "elementwise_error_times_derivative (dL/dz_L)", "dL_daL": list(dL_daL), "f_prime_z_L": list(f_prime_z_L), "delta_L": list(delta_L), "num_neurons": len(delta_L)}
+            delta_L = self._activation_gradient(output_layer_idx, dL_daL)
+            method = "softmax_jacobian (dL/dz_L)" if self.layer_configs[output_layer_idx][1] == "softmax" else "elementwise_error_times_derivative (dL/dz_L)"
+            result = {"type": "output_delta_calculation", "layer_index": output_layer_idx, "method": method, "dL_daL": list(dL_daL), "delta_L": list(delta_L), "num_neurons": len(delta_L)}
+            if self.layer_configs[output_layer_idx][1] != "softmax":
+                result["f_prime_z_L"] = list(f_prime_z_L)
+            yield result
         deltas = [delta_L] 
         for l in range(len(self.weights) - 2, -1, -1): 
             delta_next_layer, weights_next_layer = deltas[0], self.weights[l+1] 
             error_propagated = multiply_row_vector_matrix(delta_next_layer, transpose_matrix(weights_next_layer))
             z_l, activation_derivative_func_l_obj = self.neuron_outputs_z[l], self.get_activation_derivative_func_obj(l)
             f_prime_z_l = [activation_derivative_func_l_obj(z_val) for z_val in z_l]
-            delta_l = elementwise_multiply_vectors(error_propagated, f_prime_z_l)
+            delta_l = self._activation_gradient(l, error_propagated)
             deltas.insert(0, delta_l) 
-            yield {"type": "hidden_delta_calculation", "layer_index": l, "delta_next_layer": list(delta_next_layer), "error_propagated": list(error_propagated), "f_prime_z_l": list(f_prime_z_l), "delta_l": list(delta_l), "num_neurons": len(delta_l)}
+            result = {"type": "hidden_delta_calculation", "layer_index": l, "delta_next_layer": list(delta_next_layer), "error_propagated": list(error_propagated), "delta_l": list(delta_l), "num_neurons": len(delta_l)}
+            if self.layer_configs[l][1] == "softmax":
+                result["method"] = "softmax_jacobian"
+            else:
+                result["f_prime_z_l"] = list(f_prime_z_l)
+            yield result
         for l in range(len(self.weights)):
             a_prev_layer, delta_curr_layer = self.neuron_outputs_a[l], deltas[l] 
             grad_W_l, grad_b_l = [[a_prev * d_curr for d_curr in delta_curr_layer] for a_prev in a_prev_layer], delta_curr_layer 
@@ -162,3 +211,11 @@ class NeuralNetwork:
                 self.biases[l] = subtract_vectors(self.biases[l], update_term_b)
             yield {"type": "weight_update", "layer_index": l, "optimizer_used": optimizer_type}
         yield {"type": "backward_pass_complete"}
+
+    def _activation_gradient(self, layer_idx, output_gradient):
+        if self.layer_configs[layer_idx][1] == "softmax":
+            activations = self.neuron_outputs_a[layer_idx + 1]
+            weighted_gradient = sum(a * g for a, g in zip(activations, output_gradient))
+            return [a * (g - weighted_gradient) for a, g in zip(activations, output_gradient)]
+        derivative = self.get_activation_derivative_func_obj(layer_idx)
+        return elementwise_multiply_vectors(output_gradient, [derivative(z) for z in self.neuron_outputs_z[layer_idx]])

@@ -11,9 +11,14 @@ import time
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
-from utils import ACTIVATION_FUNCTIONS, LOSS_FUNCTIONS
-from neural_network import NeuralNetwork
-from gui_components import ToolTip
+if __package__:
+    from .utils import ACTIVATION_FUNCTIONS, LOSS_FUNCTIONS
+    from .neural_network import NeuralNetwork
+    from .gui_components import ToolTip
+else:
+    from utils import ACTIVATION_FUNCTIONS, LOSS_FUNCTIONS
+    from neural_network import NeuralNetwork
+    from gui_components import ToolTip
 
 try:
     import sv_ttk
@@ -480,8 +485,9 @@ class DeepLearningSimulatorGUI:
                     layer_configs_for_nn.append((num_n, act))
                 layer_configs_for_nn.append((output_size, output_act)) 
             if input_size <=0 or layer_configs_for_nn[-1][0] <= 0: raise ValueError("Giriş ve çıkış nöron sayıları pozitif olmalı.")
-            self.network.set_loss_function(self.loss_function_var.get())
-            self.network.configure_network(input_size, layer_configs_for_nn, custom_weights, custom_biases)
+            network = NeuralNetwork(self.loss_function_var.get())
+            network.configure_network(input_size, layer_configs_for_nn, custom_weights, custom_biases)
+            self.network = network
             self.log_message("Ağ yapısı oluşturuldu/yüklendi.", True)
             if not custom_weights: self.log_message("Ağırlıklar/biaslar rastgele/varsayılan yöntemle atandı.")
             if training_state:
@@ -501,8 +507,10 @@ class DeepLearningSimulatorGUI:
             self.current_training_phase_label.config(text="Aşama: -"); self.forward_pass_gen, self.backward_pass_gen = None, None; self.is_training_step_by_step_active = False
             if not training_state: self.current_epoch_losses, self.current_epoch_accuracies = [], []
             self.update_loss_graph(); self.update_accuracy_graph(); self._display_text_confusion_matrix(None); self.update_metrics_display({})
+            return True
         except ValueError as e: messagebox.showerror("Giriş Hatası", str(e))
         except Exception as e: messagebox.showerror("Hata", f"Ağ oluşturulurken/yüklenirken: {e}"); import traceback; traceback.print_exc()
+        return False
 
     def draw_network_on_canvas(self):
         self.canvas.delete("all")
@@ -556,7 +564,7 @@ class DeepLearningSimulatorGUI:
 
     def _parse_input_data(self, text_data_str, num_features, is_target=False, num_output_for_one_hot=0):
         samples=[]
-        for line_idx,line_raw in enumerate(text_data_str.strip().split(';')):
+        for line_idx,line_raw in enumerate(text_data_str.replace(';', '\n').splitlines()):
             line=line_raw.strip()
             if not line: continue
             try:
@@ -574,7 +582,8 @@ class DeepLearningSimulatorGUI:
         return samples
 
     def _get_first_training_sample_for_step_ops(self): 
-        x_str,y_str=self.x_input_text.get(1.0,tk.END).strip().split(';')[0],self.y_input_text.get(1.0,tk.END).strip().split(';')[0]
+        x_str=self.x_input_text.get(1.0,tk.END).strip().replace('\n', ';').split(';')[0]
+        y_str=self.y_input_text.get(1.0,tk.END).strip().replace('\n', ';').split(';')[0]
         if not x_str: messagebox.showinfo("Bilgi","Lütfen geçerli bir giriş verisi (X) girin."); return None,None
         try:
             x_s=self._parse_input_data(x_str,self.input_size_var.get())[0]
@@ -925,9 +934,14 @@ class DeepLearningSimulatorGUI:
         try:
             X,Y=[],[]; num_in,num_out_user=self.input_size_var.get(),self.output_size_var.get() 
             with open(fp,'r',newline='',encoding='utf-8-sig') as f: 
-                r,h=csv.reader(f),next(csv.reader(f),None) 
-                if h: self.log_message(f"CSV başlığı: {h}")
+                r=csv.reader(f)
                 for idx,row in enumerate(r):
+                    if idx == 0:
+                        try:
+                            [float(v.strip()) for v in row]
+                        except ValueError:
+                            self.log_message(f"CSV header: {row}")
+                            continue
                     if not row or len(row)<num_in+1: self.log_message(f"Uyarı: Satır {idx+1} yetersiz/boş, atlanıyor."); continue
                     try:
                         x_v=[float(v.strip()) for v in row[:num_in]]; y_raw_f=[float(v.strip()) for v in row[num_in:]]; y_parsed=[]
@@ -978,7 +992,8 @@ class DeepLearningSimulatorGUI:
             with open(fp,'r') as f: data=json.load(f)
             self.input_size_var.set(data["input_size"]); self.loss_function_var.set(data.get("loss_function","mean_squared_error"))
             training_state_loaded=data.get("training_state")
-            self.build_and_draw_network(data["weights"],data["biases"],data.get("layer_configs_full",data.get("layer_configs")),training_state=training_state_loaded)
+            if not self.build_and_draw_network(data["weights"],data["biases"],data.get("layer_configs_full",data.get("layer_configs")),training_state=training_state_loaded):
+                return
             opt_state=data.get("optimizer_state") 
             if not opt_state and training_state_loaded : opt_state={key.replace("optimizer_",""):val for key,val in training_state_loaded.items() if key.startswith("optimizer_")}
             

@@ -68,6 +68,8 @@ def mean_squared_error(y_true, y_pred):
     return 0.5 * sum((yt - yp)**2 for yt, yp in zip(y_true, y_pred)) / len(y_true)
 
 def mean_squared_error_derivative_for_dL_daL(y_true, y_pred):
+    if not y_true or len(y_true) != len(y_pred):
+        raise ValueError("MSE requires matching, nonempty target and prediction vectors.")
     return [(yp - yt) / len(y_true) for yt, yp in zip(y_true, y_pred)]
 
 def cross_entropy_loss(y_true_one_hot, y_pred_probs):
